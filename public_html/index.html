@@ -1,0 +1,209 @@
+<html>
+  <head>
+    <script
+      type="text/javascript"
+      src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=eu1xgedqvj&amp;submodules=geocoder"
+    ></script>
+    <script
+      src="https://code.jquery.com/jquery-3.6.0.min.js"
+      integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="
+      crossorigin="anonymous"
+    ></script>
+  </head>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .title {
+      width: 100%;
+      text-align: center;
+      font-size: 20px;
+      font-weight: bold;
+      background-color: #efefef;
+      padding: 10px 0;
+    }
+    #map {
+      width: 100%;
+      height: 95%;
+    }
+    .iw_inner {
+      width: auto;
+      border-color: black;
+      text-align: center;
+      padding: 10px;
+    }
+  </style>
+  <body>
+    <div class="title">약국 지도🏣</div>
+    <div id="map"></div>
+  </body>
+  <script>
+    $(document).ready(async function () {
+      let XY = await getLocation();
+      //지도를 삽입할 HTML 요소 또는 HTML 요소의 id를 지정합니다.
+      var mapDiv = document.getElementById("map"); // 'map'으로 선언해도 동일
+      //옵션 없이 지도 객체를 생성하면 서울 시청을 중심으로 하는 16 레벨의 지도가 생성됩니다.
+      var mapOptions = {
+        center: new naver.maps.LatLng(XY.lat, XY.lng),
+        zoom: 14,
+      };
+      var map = new naver.maps.Map(mapDiv, mapOptions);
+
+      //alert("위도" + XY.lat);
+      //alert("경도" + XY.lng);
+      await naver.maps.Service.reverseGeocode(
+        {
+          location: new naver.maps.LatLng(XY.lat, XY.lng),
+        },
+        function (status, response) {
+          let result = response.result;
+          let items = result.items;
+          //console.log(items[0].addrdetail.sido); //시도
+          //console.log(items[0].addrdetail.sigugun); //시구군
+          let sido_arr = items[0].addrdetail.sido.split(" ");
+          let gubun_arr = items[0].addrdetail.sigugun.split(" ");
+
+          let sido = "";
+          let gubun = "";
+          if (sido_arr.length == 1) {
+            sido = sido_arr[0];
+            gugun = gubun_arr[0];
+          } else if (sido_arr.length > 1) {
+            sido = sido_arr[0];
+            gugun = sido_arr[1];
+          }
+          console.log(sido);
+          console.log(gugun);
+
+          $.ajax({
+            url: "/pharmach_list",
+            type: "GET",
+            cache: false,
+            dataType: "json",
+            data: {
+              Q0: sido,
+              Q1: gugun,
+              QT: "",
+              QN: "",
+              ORD: "",
+              pageNo: "1",
+              numOfRows: "1000",
+            },
+            success: function (data) {
+              console.log(data);
+
+              data.items.item.forEach(function (it, index) {
+                let dutyName = it.dutyName; //약국명
+                let dutyAddr = it.dutyAddr; //주소
+                let dutyTel1 = it.dutyTel1; //전화번호
+
+                let dutyTime = "";
+                if (it.dutyTime1s && it.dutyTime1c) {
+                  dutyTime +=
+                    "월요일: " + it.dutyTime1s + " ~ " + it.dutyTime1c + "<br>";
+                }
+                if (it.dutyTime2s && it.dutyTime2c) {
+                  dutyTime +=
+                    "화요일: " + it.dutyTime2s + " ~ " + it.dutyTime2c + "<br>";
+                }
+                if (it.dutyTime3s && it.dutyTime3c) {
+                  dutyTime +=
+                    "수요일: " + it.dutyTime3s + " ~ " + it.dutyTime3c + "<br>";
+                }
+                if (it.dutyTime4s && it.dutyTime4c) {
+                  dutyTime +=
+                    "목요일: " + it.dutyTime4s + " ~ " + it.dutyTime4c + "<br>";
+                }
+                if (it.dutyTime5s && it.dutyTime5c) {
+                  dutyTime +=
+                    "금요일: " + it.dutyTime5s + " ~ " + it.dutyTime5c + "<br>";
+                }
+                if (it.dutyTime6s && it.dutyTime6c) {
+                  dutyTime +=
+                    "토요일: " + it.dutyTime6s + " ~ " + it.dutyTime6c + "<br>";
+                }
+                if (it.dutyTime7s && it.dutyTime7c) {
+                  dutyTime +=
+                    "일요일: " + it.dutyTime7s + " ~ " + it.dutyTime7c + "<br>";
+                }
+                if (it.dutyTime8s && it.dutyTime8c) {
+                  dutyTime +=
+                    "공휴일: " + it.dutyTime8s + " ~ " + it.dutyTime8c + "<br>";
+                }
+
+                let pharmacy_location = new naver.maps.LatLng(
+                  it.wgs84Lat,
+                  it.wgs84Lon
+                );
+
+                let marker = new naver.maps.Marker({
+                  map: map,
+                  position: pharmacy_location,
+                });
+
+                var contentString = [
+                  '<div class="iw_inner">',
+                  "   <h3>" + dutyName + "</h3>",
+                  "   <p>" + dutyAddr + "<br />",
+                  "<button onclick=\"window.open('https://map.kakao.com/link/to/" +
+                    dutyName +
+                    "," +
+                    it.wgs84Lat +
+                    "," +
+                    it.wgs84Lon +
+                    "');\">카카오맵 연결</button>",
+                  "       " + dutyTel1 + "<br />",
+                  "       " + dutyTime,
+                  "   </p>",
+                  "</div>",
+                ].join("");
+
+                var infowindow = new naver.maps.InfoWindow({
+                  content: contentString,
+                  maxWidth: 500,
+                  backgroundColor: "#efefef",
+                  borderColor: "#2db400",
+                  borderWidth: 5,
+                  anchorSize: new naver.maps.Size(50, 50),
+                  anchorSkew: true,
+                  anchorColor: "#fff",
+                  pixelOffset: new naver.maps.Point(20, -20),
+                });
+
+                naver.maps.Event.addListener(marker, "click", function (e) {
+                  if (infowindow.getMap()) {
+                    infowindow.close();
+                  } else {
+                    infowindow.open(map, marker);
+                  }
+                });
+              });
+            },
+            error: function (request, status, error) {},
+          });
+        }
+      );
+    });
+
+    async function getLocation() {
+      let XY = new Object();
+      if (navigator.geolocation) {
+        let promise = new Promise((resolve, rejected) => {
+          navigator.geolocation.getCurrentPosition((position) => {
+            resolve(position);
+          });
+        });
+
+        let position = await promise;
+        // position.coords.latitude 위도
+        // position.coords.longitude 경도
+        XY.lat = position.coords.latitude;
+        XY.lng = position.coords.longitude;
+      }
+      return XY;
+    }
+  </script>
+</html>
